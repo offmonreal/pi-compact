@@ -1,0 +1,6 @@
+node_modules/
+npm-debug.log*
+.DS_Store
+.pi/pi-compact-step-cache.json
+.pi/pi-compact-step-cache.json.tmp
+.pi/pi-compact-debug.jsonl

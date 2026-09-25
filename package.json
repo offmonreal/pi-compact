@@ -1,0 +1,48 @@
+{
+  "name": "@offmonreal/pi-compact",
+  "version": "0.1.0",
+  "description": "Dedicated-model, safety-first compaction extension for Pi Coding Agent.",
+  "license": "MIT",
+  "author": "offmonreal",
+  "keywords": [
+    "pi",
+    "pi-dev",
+    "pi-package",
+    "compaction",
+    "summarization",
+    "context-management"
+  ],
+  "files": [
+    "extensions",
+    "prompts",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/**/*.test.ts",
+    "check": "npm run typecheck && npm test"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/pi-compact.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=0.86.1 <0.87.0"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.86.1",
+    "@earendil-works/pi-ai": "0.86.1",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3"
+  }
+}
