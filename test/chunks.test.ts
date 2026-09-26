@@ -3,7 +3,11 @@ import test from "node:test";
 import { chunkChronologicalParts, groupToolExchanges } from "../src/chunks.js";
 
 test("keeps chronological parts intact while splitting at the input budget", () => {
-  assert.deepEqual(chunkChronologicalParts(["aaaa", "bbbb", "cccc"], 4), [["aaaa", "bbbb"], ["cccc"]]);
+  assert.deepEqual(chunkChronologicalParts(["aaaa", "bbbb", "cccc"], 4), [["aaaa"], ["bbbb"], ["cccc"]]);
+});
+
+test("accounts for separators used to serialize each map chunk", () => {
+  assert.deepEqual(chunkChronologicalParts(["aa", "bb"], 2), [["aa"], ["bb"]]);
 });
 
 test("rejects a single oversized chronological part", () => {
@@ -22,7 +26,7 @@ test("keeps a tool call and its results in one chronological group", () => {
 
 test("repeats a bounded overlap at chunk boundaries", () => {
   assert.deepEqual(
-    chunkChronologicalParts(["aaaa", "bbbb", "cccc"], 4, 50),
+    chunkChronologicalParts(["aaaa", "bbbb", "cccc"], 5, 50),
     [["aaaa", "bbbb"], ["bbbb", "cccc"]]
   );
 });

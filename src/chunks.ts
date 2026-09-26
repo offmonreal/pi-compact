@@ -33,26 +33,25 @@ export function chunkChronologicalParts(parts: readonly string[], maxInputTokens
   let start = 0;
   while (start < parts.length) {
     let end = start;
-    let currentTokens = 0;
+    let currentText = "";
     while (end < parts.length) {
-      const partTokens = estimateConservativeTokens(parts[end]);
-      if (partTokens > maxInputTokens) {
+      const candidateText = currentText ? `${currentText}\n${parts[end]}` : parts[end];
+      const candidateTokens = estimateConservativeTokens(candidateText);
+      if (candidateTokens > maxInputTokens && end === start) {
         throw new Error("A single chronological message exceeds the safe chunk input budget.");
       }
-      if (end > start && currentTokens + partTokens > maxInputTokens) break;
-      currentTokens += partTokens;
+      if (candidateTokens > maxInputTokens) break;
+      currentText = candidateText;
       end++;
     }
     chunks.push(parts.slice(start, end));
     if (end >= parts.length) break;
 
     const overlapBudget = Math.floor(maxInputTokens * overlapPercent / 100);
-    let overlapTokens = 0;
     let overlapStart = end;
     for (let index = end - 1; index > start; index--) {
-      const partTokens = estimateConservativeTokens(parts[index]);
-      if (overlapTokens + partTokens > overlapBudget) break;
-      overlapTokens += partTokens;
+      const overlapTokens = estimateConservativeTokens(parts.slice(index, end).join("\n"));
+      if (overlapTokens > overlapBudget) break;
       overlapStart = index;
     }
     start = overlapStart > start ? overlapStart : end;

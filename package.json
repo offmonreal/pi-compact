@@ -1,6 +1,6 @@
 {
   "name": "@offmonreal/pi-compact",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Dedicated-model, safety-first compaction extension for Pi Coding Agent.",
   "license": "MIT",
   "author": "offmonreal",
