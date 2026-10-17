@@ -218,9 +218,10 @@ export default function piCompact(pi: ExtensionAPI): void {
       }
 
       const chunkOutput = Math.min(config.chunkMaxTokens, candidate.maxTokens > 0 ? candidate.maxTokens : config.chunkMaxTokens);
+      // Reserve the configured final output when deciding how much history fits per chunk.
       const chunkInputBudget = getSafeInputTokenBudget(
         candidate.contextWindow,
-        chunkOutput,
+        Math.max(chunkOutput, config.finalMaxTokens),
         `${MAP_SYSTEM_PROMPT}\n${buildMapPrompt("")}`
       );
       const parts = groupToolExchanges(llmMessages).map(group => serializeConversation(group));
