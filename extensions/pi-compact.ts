@@ -3,7 +3,8 @@ import {
   getAgentDir,
   serializeConversation,
   SettingsManager,
-  type ExtensionAPI
+  type ExtensionAPI,
+  type ExtensionContext
 } from "@earendil-works/pi-coding-agent";
 import { contentText } from "@earendil-works/pi-ai";
 import {
@@ -27,9 +28,14 @@ import {
   REDUCE_SYSTEM_PROMPT
 } from "../src/prompt.js";
 
-function warn(message: string, error?: unknown): void {
-  if (error === undefined) console.warn(`[pi-compact] ${message}`);
-  else console.warn(`[pi-compact] ${message}`, error);
+function warn(message: string): void {
+  console.warn(`[pi-compact] ${message}`);
+}
+
+function reportCompactionFailure(ctx: ExtensionContext, lines: string[]): void {
+  const message = lines.join("\n");
+  if (ctx.hasUI) ctx.ui.notify(`[pi-compact] ${message}`, "error");
+  else warn(message);
 }
 
 async function debug(
@@ -104,7 +110,6 @@ export default function piCompact(pi: ExtensionAPI): void {
     const unavailableReason = config.model
       ? `summarizer model ${config.model} is unavailable.`
       : "summarizer model is not configured.";
-    if (!primary) warn(`[pi-compact] CONFIGURATION ERROR: ${unavailableReason} modelFailurePolicy=${config.modelFailurePolicy}.`);
     const model = primary ?? (config.modelFailurePolicy === "session-model" ? active : undefined);
     // A session-model fallback must preserve room for the session model to produce a
     // durable result. Never ask it to read the entire source history and produce the
@@ -118,7 +123,15 @@ export default function piCompact(pi: ExtensionAPI): void {
       forceMapReduce: forceMapReduceForSessionFallback
     });
     if (!model) {
-      warn(`[pi-compact] COMPACTION BLOCKED: ${unavailableReason} Configure piCompact.model or set modelFailurePolicy=session-model.`);
+      await debug(config.debug, ctx.cwd, runId, "compaction-failed", { reason: event.reason, error: unavailableReason });
+      reportCompactionFailure(ctx, [
+        "Compaction stopped.",
+        unavailableReason,
+        config.modelFailurePolicy === "block"
+          ? "Fallback to the session model is disabled (modelFailurePolicy=block)."
+          : "Fallback is enabled, but no session model is available.",
+        "Session history was not changed."
+      ]);
       return { cancel: true };
     }
 
@@ -288,18 +301,21 @@ export default function piCompact(pi: ExtensionAPI): void {
       return { ...result, mode: "map-reduce", mapChunks: rawChunks.length, reduceSteps };
     };
 
+    let attemptedSessionFallback = forceMapReduceForSessionFallback;
+    let dedicatedFailure = forceMapReduceForSessionFallback ? unavailableReason : undefined;
     try {
       let result;
-      let usedFallback = false;
+      let usedFallback = forceMapReduceForSessionFallback;
       try {
         result = await compactWith(model, forceMapReduceForSessionFallback);
       } catch (primaryError) {
         if (!event.signal.aborted && primary && active && config.modelFailurePolicy === "session-model" && primary !== active) {
-          warn(`[pi-compact] CONFIGURATION ERROR: summarizer ${config.model} cannot run with this output profile or failed. Retrying with the session model because modelFailurePolicy=session-model.`, primaryError);
+          attemptedSessionFallback = true;
+          dedicatedFailure = primaryError instanceof Error ? primaryError.message : String(primaryError);
           await debug(config.debug, ctx.cwd, runId, "session-model-fallback", {
             configuredModel: config.model,
             sessionModel: `${active.provider}/${active.id}`,
-            reason: primaryError instanceof Error ? primaryError.message : String(primaryError)
+            reason: dedicatedFailure
           });
           result = await compactWith(active, true);
           usedFallback = true;
@@ -346,11 +362,20 @@ export default function piCompact(pi: ExtensionAPI): void {
       }
       const detail = error instanceof Error ? error.message : String(error);
       await debug(config.debug, ctx.cwd, runId, "compaction-failed", { reason: event.reason, error: detail });
-      warn(
-        `[pi-compact] COMPACTION BLOCKED: summarizer configuration is invalid or the model failed. ${detail} ` +
-        `modelFailurePolicy=${config.modelFailurePolicy}.`,
-        error
-      );
+      const failedModel = attemptedSessionFallback && active ? active : model;
+      reportCompactionFailure(ctx, [
+        "Compaction stopped.",
+        `${attemptedSessionFallback ? "Session model" : "Summarizer"} ${failedModel.provider}/${failedModel.id} failed while compacting.`,
+        `Reason: ${detail}`,
+        config.modelFailurePolicy === "block"
+          ? "Fallback to the session model is disabled (modelFailurePolicy=block)."
+          : attemptedSessionFallback
+            ? `The dedicated summarizer was also unavailable or failed: ${dedicatedFailure}`
+            : active
+              ? "The summarizer is already the session model; no different fallback model is available."
+              : "Fallback is enabled, but no session model is available.",
+        "Session history was not changed."
+      ]);
       return { cancel: true };
     }
   });
